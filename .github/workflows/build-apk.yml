@@ -102,13 +102,14 @@ jobs:
       - name: Setup signing (release only)
         if: steps.vars.outputs.VARIANT == 'release'
         run: |
-          keytool -genkey -v \
+          rm -f app/release.keystore
+          keytool -genkeypair -v \
             -keystore app/release.keystore \
             -alias akaribox \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass akaribox -keypass akaribox \
             -dname "CN=AkariBox, O=AkariBox, C=US" \
-            -storetype PKCS12 -noprompt
+            -storetype PKCS12
           cat > local.properties << 'EOF'
           KEYSTORE_PASS=akaribox
           ALIAS_NAME=akaribox
