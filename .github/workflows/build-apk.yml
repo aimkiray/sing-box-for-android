@@ -34,9 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
-    env:
-      ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}  # pragma: allowlist secret
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,6 +69,11 @@ jobs:
           echo "VARIANT=${VARIANT_RAW}" >> $GITHUB_OUTPUT
           echo "GRADLE_TASK=assemble${FLAVOR_CAP}${VARIANT_CAP}" >> $GITHUB_OUTPUT
           echo "Sing-box: ${SING_BOX_REF}  Flavor: ${FLAVOR_RAW}  Variant: ${VARIANT_RAW}  Task: assemble${FLAVOR_CAP}${VARIANT_CAP}"
+
+      - name: Setup NDK environment
+        run: |
+          ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${{ env.NDK_VERSION }}"
+          echo "ANDROID_NDK_HOME=${ANDROID_NDK_HOME}" >> $GITHUB_ENV
 
       - name: Install gomobile
         run: |
