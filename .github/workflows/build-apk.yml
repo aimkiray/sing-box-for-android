@@ -90,13 +90,12 @@ jobs:
       - name: Build libbox.aar
         working-directory: /tmp/sing-box
         run: |
-          go run ./cmd/internal/build_libbox -target android
+          go run ./cmd/internal/build_libbox -target android -platform android/arm64
 
       - name: Stage AARs
         run: |
           mkdir -p app/libs
           cp /tmp/sing-box/libbox.aar app/libs/
-          cp /tmp/sing-box/libbox-legacy.aar app/libs/
           rm -rf /tmp/sing-box
           ls -lh app/libs/
 
