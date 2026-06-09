@@ -118,6 +118,8 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
         run: |
           ./gradlew --stop 2>/dev/null || true
+          echo "$LOCAL_PROPERTIES" | base64 -d > local.properties
+          echo "sdk.dir=${ANDROID_HOME}" >> local.properties
           ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }} --no-daemon
 
       - name: Collect APK artifacts
