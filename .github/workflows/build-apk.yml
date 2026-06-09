@@ -73,7 +73,7 @@ jobs:
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
           export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${{ env.NDK_VERSION }}"
-          gomobile init -v -ndk "${ANDROID_NDK_HOME}"
+          gomobile init -v
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Build libbox.aar
