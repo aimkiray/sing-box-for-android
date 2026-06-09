@@ -99,28 +99,23 @@ jobs:
           rm -rf /tmp/sing-box
           ls -lh app/libs/
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-
-
       - name: Setup signing (release only)
         if: steps.vars.outputs.VARIANT == 'release'
-        env:
-          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
-          if [ -z "$LOCAL_PROPERTIES" ]; then
-            echo "::error::LOCAL_PROPERTIES secret is required for release builds"
-            exit 1
-          fi
+          keytool -genkey -v \
+            -keystore app/release.keystore \
+            -alias akaribox \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass akaribox -keypass akaribox \
+            -dname "CN=AkariBox, O=AkariBox, C=US" \
+            -storetype PKCS12 -noprompt
+          cat > local.properties << 'EOF'
+          KEYSTORE_PASS=akaribox
+          ALIAS_NAME=akaribox
+          ALIAS_PASS=akaribox
+          EOF
 
       - name: Build APK
-        env:
-          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
         run: |
           ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }} --no-daemon
 
