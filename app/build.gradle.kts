@@ -81,6 +81,7 @@ android {
             storePassword = getProps("KEYSTORE_PASS")
             keyAlias = getProps("ALIAS_NAME")
             keyPassword = getProps("ALIAS_PASS")
+            storeType = "PKCS12"
         }
     }
 
