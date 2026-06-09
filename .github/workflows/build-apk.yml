@@ -25,7 +25,7 @@ on:
         default: "debug"
 
 env:
-  GO_VERSION: "1.24.6"
+  GO_VERSION: "1.25.x"
   JAVA_VERSION: "17"
   NDK_VERSION: "28.0.13004108"
 
@@ -53,8 +53,14 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: "platforms;android-35 build-tools;35.0.0 ndk;${{ env.NDK_VERSION }} cmake;3.22.1"
+
+      - name: Install NDK ${{ env.NDK_VERSION }}
+        run: |
+          ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${{ env.NDK_VERSION }}"
+          if [ ! -d "$ANDROID_NDK_HOME" ]; then
+            ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
+          fi
+          echo "ANDROID_NDK_HOME=${ANDROID_NDK_HOME}" >> $GITHUB_ENV
 
       - name: Set build parameters
         id: vars
@@ -68,33 +74,31 @@ jobs:
           echo "FLAVOR=${FLAVOR_RAW}" >> $GITHUB_OUTPUT
           echo "VARIANT=${VARIANT_RAW}" >> $GITHUB_OUTPUT
           echo "GRADLE_TASK=assemble${FLAVOR_CAP}${VARIANT_CAP}" >> $GITHUB_OUTPUT
-          echo "Sing-box: ${SING_BOX_REF}  Flavor: ${FLAVOR_RAW}  Variant: ${VARIANT_RAW}  Task: assemble${FLAVOR_CAP}${VARIANT_CAP}"
+          echo "Sing-box: ${SING_BOX_REF}  Flavor: ${FLAVOR_RAW}  Variant: ${VARIANT_RAW}"
 
-      - name: Setup NDK environment
+      - name: Clone sing-box core
         run: |
-          ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${{ env.NDK_VERSION }}"
-          echo "ANDROID_NDK_HOME=${ANDROID_NDK_HOME}" >> $GITHUB_ENV
+          git clone --depth 1 --branch "${{ steps.vars.outputs.SING_BOX_REF }}" \
+            https://github.com/SagerNet/sing-box.git /tmp/sing-box
 
-      - name: Install gomobile
+      - name: Install gomobile (SagerNet fork)
         run: |
-          go install golang.org/x/mobile/cmd/gomobile@latest
-          gomobile init -v
+          go install -v github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install -v github.com/sagernet/gomobile/cmd/gobind@v0.1.12
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Build libbox.aar
+        working-directory: /tmp/sing-box
         run: |
-          LIB_DIR="${{ github.workspace }}/app/libs"
-          mkdir -p "$LIB_DIR"
-          git clone --depth 1 --branch "${{ steps.vars.outputs.SING_BOX_REF }}" \
-            https://github.com/SagerNet/sing-box.git /tmp/sing-box
-          cd /tmp/sing-box
-          go get -tool golang.org/x/mobile/cmd/gobind
-          gomobile bind -v \
-            -target=android/arm64,android/arm,android/386,android/amd64 \
-            -androidapi 21 \
-            -o "$LIB_DIR/libbox.aar" \
-            ./experimental/libbox
+          go run ./cmd/internal/build_libbox -target android
+
+      - name: Stage AARs
+        run: |
+          mkdir -p app/libs
+          cp /tmp/sing-box/libbox.aar app/libs/
+          cp /tmp/sing-box/libbox-legacy.aar app/libs/
           rm -rf /tmp/sing-box
+          ls -lh app/libs/
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
