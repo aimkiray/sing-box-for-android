@@ -117,7 +117,8 @@ jobs:
           LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }}
+          ./gradlew --stop 2>/dev/null || true
+          ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }} --no-daemon
 
       - name: Collect APK artifacts
         run: |
