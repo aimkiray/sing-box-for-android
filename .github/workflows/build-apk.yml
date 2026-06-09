@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       sing-box-ref:
-        description: "sing-box git ref (tag or branch, e.g. v1.14.0)"
+        description: "sing-box git ref (tag or branch, e.g. v1.14.0-alpha.29)"
         required: true
         default: "v1.14.0-alpha.29"
       flavor:
@@ -32,6 +32,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    env:
+      ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}  # pragma: allowlist secret
 
     steps:
       - name: Checkout
@@ -58,28 +62,27 @@ jobs:
       - name: Set build parameters
         id: vars
         run: |
-          SING_BOX_REF="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sing-box-ref || 'v1.14.0' }}"
-          FLAVOR_RAW="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.flavor || 'other' }}"
-          VARIANT_RAW="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.variant || 'debug' }}"
+          SING_BOX_REF="${{ github.event.inputs.sing-box-ref || 'v1.14.0-alpha.29' }}"
+          FLAVOR_RAW="${{ github.event.inputs.flavor || 'other' }}"
+          VARIANT_RAW="${{ github.event.inputs.variant || 'debug' }}"
           FLAVOR_CAP="$(echo "${FLAVOR_RAW:0:1}" | tr '[:lower:]' '[:upper:]')${FLAVOR_RAW:1}"
           VARIANT_CAP="$(echo "${VARIANT_RAW:0:1}" | tr '[:lower:]' '[:upper:]')${VARIANT_RAW:1}"
           echo "SING_BOX_REF=${SING_BOX_REF}" >> $GITHUB_OUTPUT
           echo "FLAVOR=${FLAVOR_RAW}" >> $GITHUB_OUTPUT
           echo "VARIANT=${VARIANT_RAW}" >> $GITHUB_OUTPUT
           echo "GRADLE_TASK=assemble${FLAVOR_CAP}${VARIANT_CAP}" >> $GITHUB_OUTPUT
-          echo "Sing-box: ${SING_BOX_REF}, Flavor: ${FLAVOR_RAW}, Variant: ${VARIANT_RAW}, Task: assemble${FLAVOR_CAP}${VARIANT_CAP}"
+          echo "Sing-box: ${SING_BOX_REF}  Flavor: ${FLAVOR_RAW}  Variant: ${VARIANT_RAW}  Task: assemble${FLAVOR_CAP}${VARIANT_CAP}"
 
       - name: Install gomobile
         run: |
           go install golang.org/x/mobile/cmd/gomobile@latest
-          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${{ env.NDK_VERSION }}"
           gomobile init -v
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Build libbox.aar
         run: |
-          LIBBOX_DIR="${{ github.workspace }}/app/libs"
-          mkdir -p "$LIBBOX_DIR"
+          LIB_DIR="${{ github.workspace }}/app/libs"
+          mkdir -p "$LIB_DIR"
           git clone --depth 1 --branch "${{ steps.vars.outputs.SING_BOX_REF }}" \
             https://github.com/SagerNet/sing-box.git /tmp/sing-box
           cd /tmp/sing-box
@@ -87,8 +90,9 @@ jobs:
           gomobile bind -v \
             -target=android/arm64,android/arm,android/386,android/amd64 \
             -androidapi 21 \
-            -o "$LIBBOX_DIR/libbox.aar" \
+            -o "$LIB_DIR/libbox.aar" \
             ./experimental/libbox
+          rm -rf /tmp/sing-box
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -103,13 +107,13 @@ jobs:
             exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
-          echo "Keystore decoded successfully"
 
       - name: Build APK
         env:
           LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }} -Dorg.gradle.jvmargs="-Xmx4g"
+          ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }}
 
       - name: Collect APK artifacts
         run: |
