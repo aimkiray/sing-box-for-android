@@ -99,8 +99,14 @@ jobs:
           rm -rf /tmp/sing-box
           ls -lh app/libs/
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
 
       - name: Setup signing (release only)
         if: steps.vars.outputs.VARIANT == 'release'
@@ -115,11 +121,7 @@ jobs:
       - name: Build APK
         env:
           LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew --stop 2>/dev/null || true
-          echo "$LOCAL_PROPERTIES" | base64 -d > local.properties
-          echo "sdk.dir=${ANDROID_HOME}" >> local.properties
           ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }} --no-daemon
 
       - name: Collect APK artifacts
