@@ -1,0 +1,124 @@
+name: Build AkariBox APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      sing-box-ref:
+        description: "sing-box git ref (tag or branch, e.g. v1.14.0)"
+        required: true
+        default: "v1.14.0"
+      flavor:
+        description: "Build flavor"
+        required: true
+        type: choice
+        options:
+          - other
+          - play
+        default: "other"
+      variant:
+        description: "Build variant"
+        required: true
+        type: choice
+        options:
+          - debug
+          - release
+        default: "debug"
+
+env:
+  GO_VERSION: "1.25.10"
+  JAVA_VERSION: "17"
+  NDK_VERSION: "28.0.13004108"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-35 build-tools;35.0.0 ndk;${{ env.NDK_VERSION }} cmake;3.22.1"
+
+      - name: Set build parameters
+        id: vars
+        run: |
+          SING_BOX_REF="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.sing-box-ref || 'v1.14.0' }}"
+          FLAVOR_RAW="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.flavor || 'other' }}"
+          VARIANT_RAW="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.variant || 'debug' }}"
+          FLAVOR_CAP="$(echo "${FLAVOR_RAW:0:1}" | tr '[:lower:]' '[:upper:]')${FLAVOR_RAW:1}"
+          VARIANT_CAP="$(echo "${VARIANT_RAW:0:1}" | tr '[:lower:]' '[:upper:]')${VARIANT_RAW:1}"
+          echo "SING_BOX_REF=${SING_BOX_REF}" >> $GITHUB_OUTPUT
+          echo "FLAVOR=${FLAVOR_RAW}" >> $GITHUB_OUTPUT
+          echo "VARIANT=${VARIANT_RAW}" >> $GITHUB_OUTPUT
+          echo "GRADLE_TASK=assemble${FLAVOR_CAP}${VARIANT_CAP}" >> $GITHUB_OUTPUT
+          echo "Sing-box: ${SING_BOX_REF}, Flavor: ${FLAVOR_RAW}, Variant: ${VARIANT_RAW}, Task: assemble${FLAVOR_CAP}${VARIANT_CAP}"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${{ env.NDK_VERSION }}"
+          gomobile init -v -ndk "${ANDROID_NDK_HOME}"
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Build libbox.aar
+        run: |
+          LIBBOX_DIR="${{ github.workspace }}/app/libs"
+          mkdir -p "$LIBBOX_DIR"
+          git clone --depth 1 --branch "${{ steps.vars.outputs.SING_BOX_REF }}" \
+            https://github.com/SagerNet/sing-box.git /tmp/sing-box
+          cd /tmp/sing-box
+          gomobile bind -v \
+            -target=android/arm64,android/armeabi-v7a,android/x86,android/x86_64 \
+            -androidapi 21 \
+            -o "$LIBBOX_DIR/libbox.aar" \
+            ./experimental/libbox
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup signing (release only)
+        if: steps.vars.outputs.VARIANT == 'release'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is required for release builds"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
+          echo "Keystore decoded successfully"
+
+      - name: Build APK
+        env:
+          LOCAL_PROPERTIES: ${{ secrets.LOCAL_PROPERTIES }}
+        run: |
+          ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }} -Dorg.gradle.jvmargs="-Xmx4g"
+
+      - name: Collect APK artifacts
+        run: |
+          mkdir -p apks
+          APK_DIR="app/build/outputs/apk/${{ steps.vars.outputs.FLAVOR }}/${{ steps.vars.outputs.VARIANT }}"
+          find "$APK_DIR" -name "*.apk" -exec cp -v {} apks/ \;
+
+      - name: Upload all APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: AkariBox-APKs
+          path: apks/*.apk
+          if-no-files-found: error
