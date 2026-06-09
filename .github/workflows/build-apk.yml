@@ -83,6 +83,7 @@ jobs:
           git clone --depth 1 --branch "${{ steps.vars.outputs.SING_BOX_REF }}" \
             https://github.com/SagerNet/sing-box.git /tmp/sing-box
           cd /tmp/sing-box
+          go get -tool golang.org/x/mobile/cmd/gobind
           gomobile bind -v \
             -target=android/arm64,android/arm,android/386,android/amd64 \
             -androidapi 21 \
