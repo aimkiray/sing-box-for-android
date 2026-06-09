@@ -6,7 +6,7 @@ on:
       sing-box-ref:
         description: "sing-box git ref (tag or branch, e.g. v1.14.0)"
         required: true
-        default: "v1.14.0"
+        default: "v1.14.0-alpha.29"
       flavor:
         description: "Build flavor"
         required: true
