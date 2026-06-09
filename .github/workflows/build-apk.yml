@@ -77,20 +77,21 @@ jobs:
 
       - name: Install gomobile
         run: |
-          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20250102190808-5f4b5d0d305c
           gomobile init -v
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Build libbox.aar
+        env:
+          GOTOOLCHAIN: "local"
         run: |
           LIB_DIR="${{ github.workspace }}/app/libs"
           mkdir -p "$LIB_DIR"
           git clone --depth 1 --branch "${{ steps.vars.outputs.SING_BOX_REF }}" \
             https://github.com/SagerNet/sing-box.git /tmp/sing-box
           cd /tmp/sing-box
-          go get golang.org/x/mobile@latest
           gomobile bind -v \
-            -target=android/arm64,android/arm,android/386,android/amd64 \
+            -target=android/arm64,android/armeabi-v7a,android/x86,android/x86_64 \
             -androidapi 21 \
             -o "$LIB_DIR/libbox.aar" \
             ./experimental/libbox
