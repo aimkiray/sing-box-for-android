@@ -84,7 +84,7 @@ jobs:
             https://github.com/SagerNet/sing-box.git /tmp/sing-box
           cd /tmp/sing-box
           gomobile bind -v \
-            -target=android/arm64,android/armeabi-v7a,android/x86,android/x86_64 \
+            -target=android/arm64,android/arm,android/386,android/amd64 \
             -androidapi 21 \
             -o "$LIBBOX_DIR/libbox.aar" \
             ./experimental/libbox
