@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       sing-box-ref:
-        description: "sing-box git ref (tag or branch, e.g. v1.14.0-alpha.29)"
+        description: "sing-box git ref (tag or branch, e.g. v1.13.13)"
         required: true
-        default: "v1.14.0-alpha.29"
+        default: "v1.13.13"
       flavor:
         description: "Build flavor"
         required: true
@@ -65,7 +65,7 @@ jobs:
       - name: Set build parameters
         id: vars
         run: |
-          SING_BOX_REF="${{ github.event.inputs.sing-box-ref || 'v1.14.0-alpha.29' }}"
+          SING_BOX_REF="${{ github.event.inputs.sing-box-ref || 'v1.13.13' }}"
           FLAVOR_RAW="${{ github.event.inputs.flavor || 'other' }}"
           VARIANT_RAW="${{ github.event.inputs.variant || 'debug' }}"
           FLAVOR_CAP="$(echo "${FLAVOR_RAW:0:1}" | tr '[:lower:]' '[:upper:]')${FLAVOR_RAW:1}"
