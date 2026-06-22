@@ -18,7 +18,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:contentDescription="@string/content_description_app_icon"
-            tools:src="@drawable/ic_launcher_foreground" />
+            tools:src="@mipmap/ic_launcher_foreground" />
     </LinearLayout>
 
 
@@ -36,7 +36,7 @@
             android:layout_height="wrap_content"
             android:textColor="?colorOnSurface"
             android:textSize="16sp"
-            tools:text="sing-box" />
+            tools:text="AkariBox" />
 
 
         <TextView
@@ -44,7 +44,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            tools:text="io.nekohasekai.sfa" />
+            tools:text="io.akari.akaribox" />
 
 
     </LinearLayout>

@@ -1,4 +1,4 @@
-name: Build SFA APK
+name: Build AkariBox APK
 
 on:
   workflow_dispatch:
@@ -105,14 +105,14 @@ jobs:
           rm -f app/release.keystore
           keytool -genkeypair -v \
             -keystore app/release.keystore \
-            -alias sfa \
+            -alias akaribox \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass sfaandroid -keypass sfaandroid \
-            -dname "CN=SFA, O=SFA, C=US" \
+            -dname "CN=AkariBox, O=AkariBox, C=US" \
             -storetype PKCS12
           cat > local.properties << 'EOF'
           KEYSTORE_PASS=sfaandroid
-          ALIAS_NAME=sfa
+          ALIAS_NAME=akaribox
           ALIAS_PASS=sfaandroid
           EOF
 
@@ -129,6 +129,6 @@ jobs:
       - name: Upload all APKs
         uses: actions/upload-artifact@v4
         with:
-          name: SFA-APKs
+          name: AkariBox-APKs
           path: apks/*.apk
           if-no-files-found: error
