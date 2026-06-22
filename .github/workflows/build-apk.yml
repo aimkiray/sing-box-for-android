@@ -1,0 +1,134 @@
+name: Build SFA APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      sing-box-ref:
+        description: "sing-box git ref (tag or branch, e.g. v1.13.13)"
+        required: true
+        default: "v1.13.13"
+      flavor:
+        description: "Build flavor"
+        required: true
+        type: choice
+        options:
+          - other
+          - play
+        default: "other"
+      variant:
+        description: "Build variant"
+        required: true
+        type: choice
+        options:
+          - debug
+          - release
+        default: "release"
+
+env:
+  GO_VERSION: "1.25.x"
+  JAVA_VERSION: "17"
+  NDK_VERSION: "28.0.13004108"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK ${{ env.NDK_VERSION }}
+        run: |
+          ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${{ env.NDK_VERSION }}"
+          if [ ! -d "$ANDROID_NDK_HOME" ]; then
+            ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;${{ env.NDK_VERSION }}"
+          fi
+          echo "ANDROID_NDK_HOME=${ANDROID_NDK_HOME}" >> $GITHUB_ENV
+
+      - name: Set build parameters
+        id: vars
+        run: |
+          SING_BOX_REF="${{ github.event.inputs.sing-box-ref || 'v1.13.13' }}"
+          FLAVOR_RAW="${{ github.event.inputs.flavor || 'other' }}"
+          VARIANT_RAW="${{ github.event.inputs.variant || 'release' }}"
+          FLAVOR_CAP="$(echo "${FLAVOR_RAW:0:1}" | tr '[:lower:]' '[:upper:]')${FLAVOR_RAW:1}"
+          VARIANT_CAP="$(echo "${VARIANT_RAW:0:1}" | tr '[:lower:]' '[:upper:]')${VARIANT_RAW:1}"
+          echo "SING_BOX_REF=${SING_BOX_REF}" >> $GITHUB_OUTPUT
+          echo "FLAVOR=${FLAVOR_RAW}" >> $GITHUB_OUTPUT
+          echo "VARIANT=${VARIANT_RAW}" >> $GITHUB_OUTPUT
+          echo "GRADLE_TASK=assemble${FLAVOR_CAP}${VARIANT_CAP}" >> $GITHUB_OUTPUT
+          echo "Sing-box: ${SING_BOX_REF}  Flavor: ${FLAVOR_RAW}  Variant: ${VARIANT_RAW}"
+
+      - name: Clone sing-box core
+        run: |
+          git clone --depth 1 --branch "${{ steps.vars.outputs.SING_BOX_REF }}" \
+            https://github.com/SagerNet/sing-box.git /tmp/sing-box
+
+      - name: Install gomobile (SagerNet fork)
+        run: |
+          go install -v github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install -v github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Build libbox.aar
+        working-directory: /tmp/sing-box
+        run: |
+          go run ./cmd/internal/build_libbox -target android -platform android/arm64
+
+      - name: Stage AARs
+        run: |
+          mkdir -p app/libs
+          cp /tmp/sing-box/libbox.aar app/libs/
+          rm -rf /tmp/sing-box
+          ls -lh app/libs/
+
+      - name: Setup signing (release only)
+        if: steps.vars.outputs.VARIANT == 'release'
+        run: |
+          rm -f app/release.keystore
+          keytool -genkeypair -v \
+            -keystore app/release.keystore \
+            -alias sfa \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass sfaandroid -keypass sfaandroid \
+            -dname "CN=SFA, O=SFA, C=US" \
+            -storetype PKCS12
+          cat > local.properties << 'EOF'
+          KEYSTORE_PASS=sfaandroid
+          ALIAS_NAME=sfa
+          ALIAS_PASS=sfaandroid
+          EOF
+
+      - name: Build APK
+        run: |
+          ./gradlew ${{ steps.vars.outputs.GRADLE_TASK }} --no-daemon
+
+      - name: Collect APK artifacts
+        run: |
+          mkdir -p apks
+          APK_DIR="app/build/outputs/apk/${{ steps.vars.outputs.FLAVOR }}/${{ steps.vars.outputs.VARIANT }}"
+          find "$APK_DIR" -name "*.apk" -exec cp -v {} apks/ \;
+
+      - name: Upload all APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: SFA-APKs
+          path: apks/*.apk
+          if-no-files-found: error
